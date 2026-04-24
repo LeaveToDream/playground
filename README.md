@@ -1,45 +1,60 @@
 # BGG Game Cards Generator
 
-Generates printable poker-sized game cards from a BoardGameGeek user's owned collection.
+Fetches a BoardGameGeek user's owned game collection and produces print-ready
+poker-sized cards (63.5 × 88.9 mm, 9 per A4 page).
 
-## Usage
-
-```bash
-npm install
-node generate-cards.js <bgg-username>
-```
-
-Optional flag to skip PDF generation and only produce HTML:
+## Quick start with Docker
 
 ```bash
-node generate-cards.js <bgg-username> --html-only
+docker compose up --build
 ```
 
-## Output
-
-| File | Description |
-|------|-------------|
-| `cards.html` | Open in any browser → Ctrl+P → Save as PDF |
-| `cards.pdf` | Auto-generated via headless Chromium |
+Then open **http://localhost:3000**, enter a BGG username, and download the PDF.
 
 ## Card layout
 
-Standard poker card size **63.5 × 88.9 mm**, 9 cards per A4 page, sorted by BGG rating.
+Each card shows:
 
-Each card displays:
-- Game thumbnail with rating badge (colour-coded) and BGG rank
-- Title + year
-- Weight indicator (5-dot scale, Light → Heavy)
-- Player count range + Best/Recommended sweet spot
-- Playtime range
-- Play-mode tags: Solo / Coop / Semi-Coop / Versus
-- Up to 3 theme categories
-- 20 tick-circles to track plays physically
+| Section | Content |
+|---|---|
+| Image | Game thumbnail · BGG rating badge · Global rank |
+| Title | Name + year |
+| Weight | 5-dot scale (Light → Heavy) |
+| Players | Min–Max range · Best/Recommended sweet spot |
+| Playtime | Duration range |
+| Tags | Solo / Coop / Semi-Coop / Versus |
+| Categories | Up to 3 theme tags |
+| Play tracker | 20 circles to tick off physically |
 
-## Data sources
+Cards are sorted by BGG rating (highest first).
 
-All data is fetched from the [BGG XML API v2](https://boardgamegeek.com/wiki/page/BGG_XML_API2):
-- `GET /collection` — owned games with stats
-- `GET /thing` — weight, categories, mechanics, player-count poll (batched, 20 per request)
+## CLI usage (without Docker)
 
-The collection must be **public** on BGG.
+```bash
+npm install
+node generate-cards.js <bgg-username>          # generates cards.html + cards.pdf
+node generate-cards.js <bgg-username> --html-only
+```
+
+## Architecture
+
+```
+browser ──SSE──► GET /api/generate?username=…  (progress events)
+                  └─ fetchCollection()           BGG /collection
+                  └─ fetchGameDetails()          BGG /thing (batched, 20/req)
+                  └─ renderPage()                HTML card template
+                  └─ puppeteer → PDF
+
+browser ──GET──► /api/download/:token/pdf
+browser ──GET──► /api/download/:token/html
+```
+
+Generated files are held in memory for **30 minutes** then discarded.
+The BGG collection must be **public**.
+
+## Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `3000` | HTTP port |
+| `PUPPETEER_EXECUTABLE_PATH` | *(puppeteer bundled Chrome)* | Path to Chromium binary |

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BGG Game Cards</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f1a;
+    --surface: #1a1a2e;
+    --border: #2e2e4a;
+    --accent: #e67e22;
+    --accent-hover: #cf6d17;
+    --text: #e8e8f0;
+    --muted: #888;
+    --success: #27ae60;
+    --error: #e74c3c;
+    --radius: 10px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 40px;
+    width: 100%;
+    max-width: 480px;
+  }
+
+  header { text-align: center; margin-bottom: 32px; }
+  header h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; }
+  header p { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
+
+  .form-group { display: flex; gap: 8px; }
+
+  input[type="text"] {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 1rem;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  input[type="text"]::placeholder { color: var(--muted); }
+
+  button {
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 10px 20px;
+    transition: background .2s, opacity .2s;
+    white-space: nowrap;
+  }
+  button:hover:not(:disabled) { background: var(--accent-hover); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Progress log */
+  .log {
+    margin-top: 24px;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .log.visible { display: flex; }
+
+  .log-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.88rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .log-item.active { color: var(--text); }
+  .log-item.done-item { color: var(--success); }
+  .log-item.error-item { color: var(--error); }
+
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 1px;
+    animation: spin .7s linear infinite;
+  }
+  .dot-ok  { width: 14px; height: 14px; flex-shrink: 0; margin-top: 1px; color: var(--success); font-size: 14px; line-height: 1; }
+  .dot-err { width: 14px; height: 14px; flex-shrink: 0; margin-top: 1px; color: var(--error);   font-size: 14px; line-height: 1; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Download buttons */
+  .downloads {
+    margin-top: 24px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .downloads.visible { display: flex; }
+  .downloads p { font-size: 0.85rem; color: var(--muted); text-align: center; }
+
+  .btn-group { display: flex; gap: 10px; }
+  .btn-group a {
+    flex: 1;
+    display: block;
+    text-align: center;
+    padding: 11px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.92rem;
+    text-decoration: none;
+    transition: opacity .2s;
+  }
+  .btn-group a:hover { opacity: .85; }
+  .btn-pdf  { background: var(--accent); color: #fff; }
+  .btn-html { background: var(--border); color: var(--text); }
+  .btn-disabled { opacity: .4 !important; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <header>
+    <h1>BGG Game Cards</h1>
+    <p>Enter your BoardGameGeek username to generate<br>printable poker-sized cards for your collection.</p>
+  </header>
+
+  <form id="form">
+    <div class="form-group">
+      <input id="username" type="text" placeholder="BGG username" autocomplete="off" required>
+      <button id="submit-btn" type="submit">Generate</button>
+    </div>
+  </form>
+
+  <div id="log" class="log"></div>
+  <div id="downloads" class="downloads"></div>
+</div>
+
+<script>
+const form     = document.getElementById('form');
+const input    = document.getElementById('username');
+const submitBtn = document.getElementById('submit-btn');
+const log      = document.getElementById('log');
+const downloads = document.getElementById('downloads');
+
+let activeItem = null;
+
+function clearLog() {
+  log.innerHTML = '';
+  log.classList.remove('visible');
+  downloads.innerHTML = '';
+  downloads.classList.remove('visible');
+  activeItem = null;
+}
+
+function addLogItem(text, state = 'active') {
+  const item = document.createElement('div');
+  item.className = `log-item ${state === 'active' ? 'active' : ''}`;
+
+  const icon = document.createElement('span');
+  if (state === 'active') {
+    icon.className = 'spinner';
+  } else if (state === 'done-item') {
+    icon.className = 'dot-ok'; icon.textContent = '✓';
+  } else if (state === 'error-item') {
+    icon.className = 'dot-err'; icon.textContent = '✗';
+  }
+
+  const msg = document.createElement('span');
+  msg.textContent = text;
+
+  item.appendChild(icon);
+  item.appendChild(msg);
+  log.appendChild(item);
+  return item;
+}
+
+function finaliseItem(item, isError = false) {
+  item.classList.remove('active');
+  item.classList.add(isError ? 'error-item' : 'done-item');
+  const icon = item.querySelector('.spinner');
+  if (icon) {
+    icon.className = isError ? 'dot-err' : 'dot-ok';
+    icon.textContent = isError ? '✗' : '✓';
+  }
+}
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const username = input.value.trim();
+  if (!username) return;
+
+  clearLog();
+  log.classList.add('visible');
+  submitBtn.disabled = true;
+
+  activeItem = addLogItem('Connecting to BoardGameGeek…');
+
+  const source = new EventSource(`/api/generate?username=${encodeURIComponent(username)}`);
+
+  source.addEventListener('progress', e => {
+    const data = JSON.parse(e.data);
+    if (activeItem) finaliseItem(activeItem);
+    activeItem = addLogItem(data.message);
+  });
+
+  source.addEventListener('done', e => {
+    const data = JSON.parse(e.data);
+    if (activeItem) finaliseItem(activeItem);
+    activeItem = addLogItem(`Done — ${data.count} cards generated.`, 'done-item');
+    finaliseItem(activeItem);
+    activeItem = null;
+
+    const token = data.token;
+    downloads.innerHTML = `
+      <p>Cards expire from the server after 30 minutes.</p>
+      <div class="btn-group">
+        <a class="btn-pdf${data.hasPdf ? '' : ' btn-disabled'}"
+           href="/api/download/${token}/pdf" download>
+          ⬇ Download PDF
+        </a>
+        <a class="btn-html" href="/api/download/${token}/html" download>
+          ⬇ Download HTML
+        </a>
+      </div>`;
+    downloads.classList.add('visible');
+    submitBtn.disabled = false;
+    source.close();
+  });
+
+  source.addEventListener('error', e => {
+    const data = e.data ? JSON.parse(e.data) : { message: 'Connection lost' };
+    if (activeItem) finaliseItem(activeItem, true);
+    addLogItem(data.message ?? 'An error occurred.', 'error-item');
+    submitBtn.disabled = false;
+    source.close();
+  });
+
+  source.onerror = () => {
+    if (activeItem) finaliseItem(activeItem, true);
+    addLogItem('Connection to server lost.', 'error-item');
+    submitBtn.disabled = false;
+    source.close();
+  };
+});
+</script>
+</body>
+</html>

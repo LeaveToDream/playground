@@ -4,9 +4,11 @@
   "type": "module",
   "description": "Generate printable game cards from a BoardGameGeek collection",
   "scripts": {
+    "start": "node server.js",
     "generate": "node generate-cards.js"
   },
   "dependencies": {
+    "express": "^4.21.2",
     "fast-xml-parser": "^4.5.3",
     "puppeteer": "^24.7.2"
   }

@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Secrets
+.env
+
 # Generated output
 cards.html
 cards.pdf

@@ -6,4 +6,5 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - BGG_TOKEN=${BGG_TOKEN}   # set in .env or export in shell before docker compose up
     restart: unless-stopped

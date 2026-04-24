@@ -9,9 +9,14 @@ const parser = new XMLParser({
   parseAttributeValue: true,
 });
 
+function authHeaders() {
+  const token = process.env.BGG_TOKEN;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function fetchWithRetry(url, maxRetries = 8, delayMs = 2000) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: authHeaders() });
     if (res.status === 200) return res.text();
     if (res.status === 202) {
       process.stdout.write(attempt === 0 ? '  BGG is processing the request' : '.');
@@ -19,6 +24,7 @@ async function fetchWithRetry(url, maxRetries = 8, delayMs = 2000) {
       delayMs = Math.min(delayMs * 1.5, 10000);
       continue;
     }
+    if (res.status === 401) throw new Error('BGG API returned 401 Unauthorized — check that BGG_TOKEN is set correctly');
     throw new Error(`BGG API returned HTTP ${res.status} for ${url}`);
   }
   throw new Error('BGG API timed out — collection may be private or username wrong');
